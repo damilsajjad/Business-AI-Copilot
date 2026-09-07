@@ -8,9 +8,47 @@ from fastapi import APIRouter, HTTPException, status
 
 from app.core.auth import CurrentUser
 from app.core.supabase import SupabaseClientError, get_supabase_client
-from app.schemas.auth import UserProfile
+from app.schemas.auth import SignupRequest, SignupResponse, UserProfile
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+@router.post("/signup", response_model=SignupResponse, status_code=status.HTTP_201_CREATED)
+async def signup(body: SignupRequest) -> SignupResponse:
+    """Create a new user account with pre-confirmed email to avoid SMTP rate limits."""
+    try:
+        client = get_supabase_client()
+        res = client.auth.admin.create_user(
+            {
+                "email": body.email,
+                "password": body.password,
+                "email_confirm": True,
+                "user_metadata": {"full_name": body.full_name},
+            }
+        )
+        if not res or not res.user:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Failed to create account",
+            )
+        return SignupResponse(
+            id=str(res.user.id),
+            email=res.user.email or body.email,
+            message="Account created successfully",
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        err_msg = str(e)
+        if "already been registered" in err_msg or "already exists" in err_msg:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="An account with this email address already exists. Please sign in.",
+            ) from e
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Could not create account: {err_msg}",
+        ) from e
 
 
 @router.get("/me")

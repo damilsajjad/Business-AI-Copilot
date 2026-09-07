@@ -44,6 +44,8 @@ export default function DashboardPage() {
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [selectedBusiness, setSelectedBusiness] = useState<Business | null>(null);
   const [newBusinessName, setNewBusinessName] = useState("");
+  const [newIndustry, setNewIndustry] = useState("Retail / E-Commerce");
+  const [showNewWorkspaceModal, setShowNewWorkspaceModal] = useState(false);
   const [creatingBusiness, setCreatingBusiness] = useState(false);
 
   const [uploads, setUploads] = useState<UploadedFileItem[]>([]);
@@ -201,26 +203,16 @@ export default function DashboardPage() {
 
   const loadBusinesses = useCallback(async () => {
     try {
-      let data = await apiJson<Business[]>("/api/v1/businesses");
-      if (data.length === 0) {
-        // Automatically provision demo business workspace
-        try {
-          const defaultBiz = await apiJson<Business>("/api/v1/businesses", {
-            method: "POST",
-            body: JSON.stringify({
-              name: "Apex Retail Co.",
-              industry: "Retail / E-Commerce",
-            }),
-          });
-          data = [defaultBiz];
-        } catch {
-          // ignore error
-        }
-      }
+      const data = await apiJson<Business[]>("/api/v1/businesses");
       setBusinesses(data);
       if (data.length > 0) {
-        setSelectedBusiness(data[0]);
-        loadUploads(data[0].id);
+        setSelectedBusiness((prev) => {
+          if (prev && data.some((b) => b.id === prev.id)) return prev;
+          loadUploads(data[0].id);
+          return data[0];
+        });
+      } else {
+        setSelectedBusiness(null);
       }
     } catch (err) {
       console.error("Failed to load businesses:", err);
@@ -233,7 +225,7 @@ export default function DashboardPage() {
     async function checkAuth() {
       // 1. Check Guest / Demo Mode
       if (typeof window !== "undefined" && sessionStorage.getItem("guest_mode") === "true") {
-        let storedEmail = "demo@businesscopilot.ai";
+        let storedEmail = "guest@businesscopilot.ai";
         try {
           const stored = localStorage.getItem("demo_user");
           if (stored) {
@@ -244,8 +236,8 @@ export default function DashboardPage() {
           // ignore error
         }
         setUser({ id: "demo-guest-user", email: storedEmail } as User);
-        setLoading(false);
         await loadBusinesses();
+        setLoading(false);
         return;
       }
 
@@ -257,8 +249,8 @@ export default function DashboardPage() {
 
         if (session) {
           setUser(session.user);
-          setLoading(false);
           await loadBusinesses();
+          setLoading(false);
           return;
         }
       } catch (err) {
@@ -282,7 +274,7 @@ export default function DashboardPage() {
         method: "POST",
         body: JSON.stringify({
           name: newBusinessName.trim(),
-          industry: "Retail / E-Commerce",
+          industry: newIndustry || "Retail / E-Commerce",
         }),
       });
 
@@ -293,6 +285,7 @@ export default function DashboardPage() {
       setActiveProfile(null);
       setActiveFileId(null);
       setAnalyticsReport(null);
+      setShowNewWorkspaceModal(false);
     } catch (err) {
       console.error("Error creating business:", err);
     } finally {
@@ -370,32 +363,45 @@ export default function DashboardPage() {
               </span>
             </div>
 
-            {/* Business Selector */}
-            {businesses.length > 0 && selectedBusiness && (
-              <div className="relative">
-                <select
-                  value={selectedBusiness.id}
-                  onChange={(e) => {
-                    const found = businesses.find((b) => b.id === e.target.value);
-                    if (found) {
-                      setSelectedBusiness(found);
-                      setActiveProfile(null);
-                      setActiveFileId(null);
-                      setIsMappingMode(false);
-                      setAnalyticsReport(null);
-                      loadUploads(found.id);
-                    }
-                  }}
-                  className="rounded-lg border border-zinc-200 bg-zinc-50 py-1.5 pl-3 pr-8 text-xs font-medium text-zinc-800 focus:border-indigo-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 cursor-pointer"
-                >
-                  {businesses.map((b) => (
-                    <option key={b.id} value={b.id}>
-                      {b.name} ({b.role})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
+            {/* Business Selector & + New Workspace Button */}
+            <div className="flex items-center gap-2">
+              {businesses.length > 0 && selectedBusiness && (
+                <div className="relative">
+                  <select
+                    value={selectedBusiness.id}
+                    onChange={(e) => {
+                      const found = businesses.find((b) => b.id === e.target.value);
+                      if (found) {
+                        setSelectedBusiness(found);
+                        setActiveProfile(null);
+                        setActiveFileId(null);
+                        setIsMappingMode(false);
+                        setAnalyticsReport(null);
+                        loadUploads(found.id);
+                      }
+                    }}
+                    className="rounded-lg border border-zinc-200 bg-zinc-50 py-1.5 pl-3 pr-8 text-xs font-medium text-zinc-800 focus:border-indigo-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-200 cursor-pointer"
+                  >
+                    {businesses.map((b) => (
+                      <option key={b.id} value={b.id}>
+                        {b.name} ({b.role})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              <button
+                id="create-new-workspace-btn"
+                onClick={() => {
+                  setNewBusinessName("");
+                  setShowNewWorkspaceModal(true);
+                }}
+                className="flex items-center gap-1 rounded-lg border border-indigo-200 bg-indigo-50/70 px-2.5 py-1.5 text-xs font-semibold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/50 dark:text-indigo-300 dark:hover:bg-indigo-900/60 transition-colors shadow-sm cursor-pointer"
+                title="Create a new business workspace"
+              >
+                <span className="text-sm font-bold leading-none">+</span> New Workspace
+              </button>
+            </div>
           </div>
 
           <div className="flex items-center gap-4">
@@ -423,19 +429,44 @@ export default function DashboardPage() {
             <h2 className="text-lg font-semibold text-zinc-900 dark:text-zinc-100">
               Create Your Business Workspace
             </h2>
-            <form onSubmit={handleCreateBusiness} className="mt-6 flex flex-col gap-3">
-              <input
-                type="text"
-                placeholder="e.g. Apex Retail Store"
-                value={newBusinessName}
-                onChange={(e) => setNewBusinessName(e.target.value)}
-                className="h-10 rounded-lg border border-zinc-300 px-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-indigo-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
-                required
-              />
+            <p className="mt-1 text-xs text-zinc-500 dark:text-zinc-400">
+              Set up your business workspace to begin uploading and analyzing data.
+            </p>
+            <form onSubmit={handleCreateBusiness} className="mt-6 flex flex-col gap-3 text-left">
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Workspace Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. Apex Retail, My Online Store"
+                  value={newBusinessName}
+                  onChange={(e) => setNewBusinessName(e.target.value)}
+                  className="h-10 w-full rounded-lg border border-zinc-300 px-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-indigo-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Industry / Category
+                </label>
+                <select
+                  value={newIndustry}
+                  onChange={(e) => setNewIndustry(e.target.value)}
+                  className="h-10 w-full rounded-lg border border-zinc-300 px-3 text-sm text-zinc-900 focus:border-indigo-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                >
+                  <option value="Retail / E-Commerce">Retail / E-Commerce</option>
+                  <option value="SaaS / Software">SaaS / Software</option>
+                  <option value="Wholesale / Distribution">Wholesale / Distribution</option>
+                  <option value="Manufacturing">Manufacturing</option>
+                  <option value="Services / Consulting">Services / Consulting</option>
+                  <option value="General Business">General Business</option>
+                </select>
+              </div>
               <button
                 type="submit"
-                disabled={creatingBusiness}
-                className="flex h-10 items-center justify-center rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60 dark:bg-indigo-500"
+                disabled={creatingBusiness || !newBusinessName.trim()}
+                className="mt-2 flex h-10 items-center justify-center rounded-lg bg-indigo-600 px-4 text-sm font-semibold text-white hover:bg-indigo-700 disabled:opacity-60 dark:bg-indigo-500"
               >
                 {creatingBusiness ? "Creating..." : "Create Workspace"}
               </button>
@@ -682,6 +713,77 @@ export default function DashboardPage() {
           </>
         )}
       </main>
+
+      {/* New Workspace Modal */}
+      {showNewWorkspaceModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm">
+          <div className="w-full max-w-md rounded-2xl border border-zinc-200 bg-white p-6 shadow-2xl dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="flex items-center justify-between pb-3 border-b border-zinc-100 dark:border-zinc-800">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🏢</span>
+                <h3 className="text-base font-bold text-zinc-900 dark:text-zinc-100">
+                  Create New Workspace
+                </h3>
+              </div>
+              <button
+                onClick={() => setShowNewWorkspaceModal(false)}
+                className="rounded-lg p-1 text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200"
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleCreateBusiness} className="mt-4 flex flex-col gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Workspace Name
+                </label>
+                <input
+                  type="text"
+                  placeholder="e.g. My E-commerce Brand, Bakery Co."
+                  value={newBusinessName}
+                  onChange={(e) => setNewBusinessName(e.target.value)}
+                  className="h-10 w-full rounded-lg border border-zinc-300 px-3 text-sm text-zinc-900 placeholder:text-zinc-400 focus:border-indigo-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                  required
+                  autoFocus
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-zinc-700 dark:text-zinc-300 mb-1">
+                  Industry / Domain
+                </label>
+                <select
+                  value={newIndustry}
+                  onChange={(e) => setNewIndustry(e.target.value)}
+                  className="h-10 w-full rounded-lg border border-zinc-300 px-3 text-sm text-zinc-900 focus:border-indigo-500 focus:outline-none dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-100"
+                >
+                  <option value="Retail / E-Commerce">Retail / E-Commerce</option>
+                  <option value="SaaS / Software">SaaS / Software</option>
+                  <option value="Wholesale / Distribution">Wholesale / Distribution</option>
+                  <option value="Manufacturing">Manufacturing</option>
+                  <option value="Services / Consulting">Services / Consulting</option>
+                  <option value="General Business">General Business</option>
+                </select>
+              </div>
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-zinc-100 dark:border-zinc-800">
+                <button
+                  type="button"
+                  onClick={() => setShowNewWorkspaceModal(false)}
+                  className="rounded-lg border border-zinc-200 bg-white px-3.5 py-2 text-xs font-medium text-zinc-700 hover:bg-zinc-50 dark:border-zinc-700 dark:bg-zinc-800 dark:text-zinc-300"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={creatingBusiness || !newBusinessName.trim()}
+                  className="flex items-center justify-center rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-700 disabled:opacity-50 dark:bg-indigo-500"
+                >
+                  {creatingBusiness ? "Creating..." : "Create Workspace"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

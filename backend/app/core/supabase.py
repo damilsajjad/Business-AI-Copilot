@@ -207,6 +207,43 @@ class MockTableQuery:
         return True
 
 
+class MockUser:
+    def __init__(self, id: str, email: str):
+        self.id = id
+        self.email = email
+
+
+class MockUserResponse:
+    def __init__(self, user: MockUser):
+        self.user = user
+
+
+class MockAuthAdmin:
+    def __init__(self, db: dict[str, list[dict[str, Any]]]):
+        self.db = db
+
+    def create_user(self, attributes: dict[str, Any]) -> MockUserResponse:
+        email = attributes.get("email", "")
+        for u in self.db.get("profiles", []):
+            if u.get("email") == email:
+                raise Exception("A user with this email address has already been registered")
+        uid = str(uuid4())
+        profile = {
+            "id": uid,
+            "email": email,
+            "full_name": attributes.get("user_metadata", {}).get("full_name", ""),
+        }
+        if "profiles" not in self.db:
+            self.db["profiles"] = []
+        self.db["profiles"].append(profile)
+        return MockUserResponse(MockUser(uid, email))
+
+
+class MockAuth:
+    def __init__(self, db: dict[str, list[dict[str, Any]]]):
+        self.admin = MockAuthAdmin(db)
+
+
 class InMemorySupabaseClient:
     """In-memory Supabase client replacement for development and test execution."""
 
@@ -220,7 +257,9 @@ class InMemorySupabaseClient:
             "analytics_snapshots": [],
             "ai_insights": [],
             "scheduled_reports": [],
+            "profiles": [],
         }
+        self.auth = MockAuth(self.db)
 
     def table(self, table_name: str) -> MockTableQuery:
         return MockTableQuery(self.db, table_name)

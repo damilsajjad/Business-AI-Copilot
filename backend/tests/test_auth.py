@@ -73,3 +73,32 @@ class TestAuthProfile:
         assert data["id"] == TEST_USER_ID
         assert data["email"] == TEST_USER_EMAIL
         assert data["full_name"] == "Test User"
+
+
+class TestAuthSignup:
+    """Tests for POST /api/v1/auth/signup."""
+
+    @pytest.mark.asyncio
+    async def test_signup_success(self, client, mock_supabase):
+        """Valid signup request should return 201 with user details."""
+        from unittest.mock import MagicMock
+        mock_user = MagicMock()
+        mock_user.id = "user-uuid-123"
+        mock_user.email = "newuser@example.com"
+        mock_res = MagicMock()
+        mock_res.user = mock_user
+
+        mock_supabase.auth.admin.create_user.return_value = mock_res
+
+        response = await client.post(
+            "/api/v1/auth/signup",
+            json={
+                "email": "newuser@example.com",
+                "password": "Password123!",
+                "full_name": "New User",
+            },
+        )
+        assert response.status_code == 201
+        data = response.json()
+        assert data["email"] == "newuser@example.com"
+        assert data["id"] == "user-uuid-123"

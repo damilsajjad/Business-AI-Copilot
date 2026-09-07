@@ -20,3 +20,19 @@ class TokenPayload(BaseModel):
     role: str = "authenticated"
     exp: int | None = None
     iat: int | None = None
+
+
+class SignupRequest(BaseModel):
+    """User signup payload."""
+
+    email: str
+    password: str
+    full_name: str = ""
+
+
+class SignupResponse(BaseModel):
+    """User signup response."""
+
+    id: str
+    email: str
+    message: str = "Account created successfully"

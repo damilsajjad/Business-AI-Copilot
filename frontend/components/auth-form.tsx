@@ -53,24 +53,59 @@ export default function AuthForm({ mode }: AuthFormProps) {
       }
 
       if (isSignup) {
-        const { error: signUpError } = await supabase.auth.signUp({
+        // Create account via backend admin API to bypass SMTP rate limit
+        const apiBase = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+        try {
+          const res = await fetch(`${apiBase}/api/v1/auth/signup`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              email,
+              password,
+              full_name: fullName,
+            }),
+          });
+
+          if (!res.ok) {
+            const errData = await res.json().catch(() => ({ detail: "Signup failed" }));
+            setError(errData.detail || "Failed to create account.");
+            setLoading(false);
+            return;
+          }
+        } catch {
+          // Fallback to direct client-side signup if backend is unreachable
+          const { error: signUpError } = await supabase.auth.signUp({
+            email,
+            password,
+            options: {
+              data: {
+                full_name: fullName,
+              },
+            },
+          });
+
+          if (signUpError) {
+            setError(signUpError.message);
+            setLoading(false);
+            return;
+          }
+        }
+
+        // Account created & pre-confirmed! Sign in immediately
+        const { error: autoSignInError } = await supabase.auth.signInWithPassword({
           email,
           password,
-          options: {
-            data: {
-              full_name: fullName,
-            },
-          },
         });
 
-        if (signUpError) {
-          setError(signUpError.message);
+        if (autoSignInError) {
+          setError(`Account created! Please sign in with your credentials.`);
+          setLoading(false);
           return;
         }
 
-        setSuccess(
-          "Account created! Check your email for a confirmation link."
-        );
+        router.push("/dashboard");
+        router.refresh();
+        return;
       } else {
         const { error: signInError } = await supabase.auth.signInWithPassword({
           email,
