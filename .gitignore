@@ -1,0 +1,65 @@
+# ===========================
+# AI Business Copilot
+# ===========================
+
+# ----- Environment -----
+.env
+.env.local
+.env.production
+.env.staging
+.env*.local
+
+# ----- Python -----
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+*.whl
+.venv/
+venv/
+env/
+ENV/
+.python-version
+
+# ----- Node.js -----
+node_modules/
+.next/
+out/
+.vercel
+
+# ----- IDE -----
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# ----- Testing -----
+.coverage
+htmlcov/
+.pytest_cache/
+.mypy_cache/
+coverage/
+
+# ----- Build -----
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ----- ML / Data -----
+*.joblib
+*.pkl
+*.pickle
+uploads/
+temp/
+
+# ----- Supabase -----
+supabase/.temp/
